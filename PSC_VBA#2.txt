@@ -1,0 +1,45 @@
+This is an addendum to my previous article
+"VBA-Macros like real applications".
+With a little help from the code by 
+Michael E. Chancey Jr., I learned that there
+is a much easier way to turn the very
+restricted VBA-forms into the usual flexible
+VB-forms.
+Here's how:
+
+Public Const WS_EX_APPWINDOW = &H40000
+Public Const WS_MINIMIZEBOX = &H20000
+Public Const WS_MAXIMIZEBOX = &H10000
+Public Const WS_THICKFRAME = &H40000
+Public Const WS_SIZEBOX = WS_THICKFRAME
+
+Public Const GWL_STYLE = (-16)
+Public Const GWL_EXSTYLE = (-20)
+
+Public Const SW_HIDE = 0
+Public Const SW_NORMAL = 1
+
+Public Declare Function GetActiveWindow Lib "user32" () As Long
+Public Declare Function ShowWindow Lib "user32" (ByVal hWnd As Long, ByVal nCmdShow As Long) As Long
+Public Declare Function GetWindowLong Lib "user32" Alias "GetWindowLongA" (ByVal hWnd As Long, ByVal nIndex As Long) As Long
+Public Declare Function SetWindowLong Lib "user32" Alias "SetWindowLongA" (ByVal hWnd As Long, ByVal nIndex As Long, ByVal wNewWord As Long) As Long
+
+Public Sub flexForm()
+
+    Dim wLong As Long
+    Dim hWnd As Long
+
+
+    hWnd = GetActiveWindow
+    ShowWindow hWnd, SW_HIDE
+    ' make sure form shows up in task bar
+    wLong = GetWindowLong(hWnd, GWL_EXSTYLE)
+    wLong = wLong Or WS_EX_APPWINDOW
+    SetWindowLong hWnd, GWL_EXSTYLE, wLong
+    ' add minimize,maximize and size
+    wLong = GetWindowLong(hWnd, GWL_STYLE)
+    wLong = wLong Or WS_MINIMIZEBOX Or WS_MAXIMIZEBOX Or WS_SIZEBOX
+    SetWindowLong hWnd, GWL_STYLE, wLong
+    ShowWindow hWnd, SW_NORMAL
+
+End Sub
