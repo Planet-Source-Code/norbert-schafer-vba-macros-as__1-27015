@@ -1,0 +1,292 @@
+﻿<div align="center">
+
+## VBA\-macros as
+
+
+</div>
+
+### Description
+
+If you want to make your VBA macro "look and feel"
+
+like a real VB-Application or if you want to learn
+
+more about advanced VBA programming, this tutorial
+
+might be of interest to you.
+ 
+### More Info
+ 
+
+
+<span>             |<span>
+---                |---
+**Submitted On**   |2001-09-06 14:28:20
+**By**             |[Norbert Schafer](https://github.com/Planet-Source-Code/PSCIndex/blob/master/ByAuthor/norbert-schafer.md)
+**Level**          |Intermediate
+**User Rating**    |5.0 (15 globes from 3 users)
+**Compatibility**  |VBA MS Excel
+**Category**       |[Microsoft Office Apps/VBA](https://github.com/Planet-Source-Code/PSCIndex/blob/master/ByCategory/microsoft-office-apps-vba__1-42.md)
+**World**          |[Visual Basic](https://github.com/Planet-Source-Code/PSCIndex/blob/master/ByWorld/visual-basic.md)
+**Archive File**   |[VBA\-macros26001962001\.zip](https://github.com/Planet-Source-Code/norbert-schafer-vba-macros-as__1-27015/archive/master.zip)
+
+
+
+
+
+### Source Code
+
+```
+VBA is a nice tool for quick-and-dirty macro programming.
+However, it lacks quite a few things to enable the programmer
+to build "full-fledged" applications using VBA.
+This is a pity as it's more common to have a customer's PC
+with MS-Office installed than a PC with VB on it.
+I tried to overcome some of these limitations as there are:
+-"cosmetics"
+-windows show up always at the same position
+-no Minimize button in window caption
+By the way, substitute "Excel" by "Word" if you're
+using the Word-VBA.
+Cosmetics
+---------
+The first (and last) thing I usually do is hide Excel
+during execution of my programm; this looks much nicer
+and brings a macro closer to being a "real" program.
+I also can put a shortcut to the .xls-file on the
+desktop and double-clicking opens my window.
+Thus,
+Private Sub UserForm_Initialize()
+ Excel.Application.Visible = False
+ ' other stuff here
+End Sub
+Private Sub UserForm_Terminate()
+ ' this line closes excel if there's only one open
+ ' workbook. only makes sense if macro is debugged
+ ' otherwise excel shuts down after each run.
+ If Excel.Workbooks.Count = 1 Then
+  Excel.Application.Quit
+ Else
+  Excel.Application.Visible = True
+ End If
+End Sub
+does the trick.
+Window-Positions
+----------------
+I want my applications to remember their window positions
+and to come up with the windows where I left them.
+With VBA, there is a knack to it:
+as the Visible-property of a form is read-only,
+you must call the Show routine if the form is to be
+shown after a Hide call (see below why one would want to
+hide a form). This shows the form not at the previous
+position but at the default position. So we need a flag
+and a file to store the positions:
+Private hasPos as Boolean
+Private Sub UserForm_Initialize()
+ hasPos = False
+End Sub
+Private Sub UserForm_Activate()
+ If Not hasPos Then
+  hasPos = True
+  recallWinPos ' this routine reads top and left
+      ' from a file and sets the form
+      ' top and left properties
+ End If
+End Sub
+Private Sub UserForm_QueryClose(Cancel As Integer, CloseMode As Integer)
+ ' do this in QueryClose event as in
+ ' Terminate event top and left are meaningless
+ storeWinPos Me.left, Me.top
+End Sub
+Minimize Window
+---------------
+It's really annoying that the VBA forms don't have a
+Minimize box and that they don't show up in the task bar.
+It might be possible to create standard windows using
+API calls and/or custom OCXs; however I wanted a solution
+using only VBA built-in functions (plus, I have to admit,
+some API calls).
+After some thoughts I came up with the idea to add an icon
+to the Sys-Tray and show or hide the window when the user
+clicks into that icon. Adding an icon to the systray is a
+piece of cake; the code is readily available quite a few
+times at this site. The first problem is to obtain the
+window handle of the form as this is NOT a property.
+That's where a usefull API call comes in:
+Public Declare Function GetActiveWindow Lib "user32" () As Long
+Private Sub UserForm_Activate()
+ myHWnd = GetActiveWindow
+End Sub
+Still crazy after all these programming-years, I supplied
+this handle to the NOTIFYICONDATA structure expecting
+a click into the tray icon showing up in the UserForm_MouseMove
+event - naaaaahh....
+Using the APISpyer by Steve Weller, I learned that the handle
+returned only "covers" the non-client area (caption and border)
+of the form; the "body" has it's own window handle.
+How to find it? Well, that's where another API call comes in handy:
+Public Declare Function FindWindowEx Lib "user32" Alias "FindWindowExA" (ByVal hWndParent As Long, ByVal hWndChildAfter As Long, ByVal lpClassName As String, ByVal lpWindowName As String) As Long
+We "only" need to know the class name of our window; that'd do the trick.
+Here is another tool from this site of help,
+the Window Explorer. It browses through all windows
+plus all child windows. It tells me that the class name
+in question is "F3 Server 60000000".
+Thus, here's what we need to do:
+Private Sub UserForm_Activate()
+ myHWnd = FindWindowEx(GetActiveWindow, 0, "F3 Server 60000000", "")
+End Sub
+OK, now a click in the tray icon throws a MouseMove event.
+The button being pressed or released is coded in the X parameter
+which is not very convenient:
+Private Sub UserForm_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+ Dim msg As Long
+ ' if from tray, button=1 and y=0
+ If (Button = 1) And (Y = 0) Then
+  msg = (X * 4) / 3
+  If msg = WM_LBUTTONUP Then ShowOrHideMe
+ End If
+End Sub
+The call to ShowOrHideMe checks wether the from is
+visible and shows or hides it, accordingly.
+However, as mentioned before, the UserForm.Visible
+property can't be used as it is read-only.
+So we'd have to use the .Hide and .Show routines.
+But this is a pain in the butt as after a Show our
+form shows up at the design-time position rather
+than where we put it (that's because it's a modal form).
+At that time, I grew tired of using more flags
+in the Activate event. I decided to move the form
+off-screen rather than hiding it:
+If isVisible Then
+ visPos_left = Me.left
+ visPos_top = Me.top
+ Me.left = 0
+ Me.top = 65535
+Else
+ Me.left = visPos_left
+ Me.top = visPos_top
+ Me.Repaint
+ winToTop
+End If
+isVisible = Not isVisible
+The winToTop routine does what the name tells us: it
+brings the window on top of all other things.
+It took me a while to get it to work as all obvious
+methods (send WM_ACTIVATEAPP, send WM_LBUTTONDOWN
+followed by WM_LBUTTONUP, call BringWindowToTop) didn't
+do it. So, more APIs:
+Public Type RECT
+ left As Long
+ top As Long
+ right As Long
+ bottom As Long
+End Type
+Public Declare Function GetWindowRect Lib "user32.dll" (ByVal hwnd As Long, lpRect As RECT) As Long
+Public Declare Function SetWindowPos Lib "user32" (ByVal hwnd As Long, ByVal hWndInsertAfter As Long, ByVal X As Long, ByVal Y As Long, ByVal cx As Long, ByVal cy As Long, ByVal wFlags As Long) As Long
+Private Sub winToTop()
+ Dim xcoord As Long, ycoord As Long
+ Dim winrect As RECT ' receives coordinates of the window
+ GetWindowRect myHWnd, winrect
+ xcoord = (winrect.right - winrect.left)
+ ycoord = (winrect.bottom - winrect.top)
+ SetWindowPos myHWnd, HWND_TOPMOST, winrect.left, winrect.top, xcoord, ycoord, 0
+End Sub
+Note that myHWnd is the window handle of the non-client window
+(the mother of our windows), NOT the "F3 Server 60000000" child
+window handle.
+I'm sure there are other ways to bring the window to top
+but winToTop works and I was too lazy to dig further into it.
+All in all, this is not very satisfying.
+-we need to know the class name of the "body" window.
+ If for some reason this name changes, we're stuck.
+-A click into the tray is NOT distinguishable from
+ a 'real' MouseMove event - if a user keeps the left
+ mouse button pressed and moves the mouse around, he can
+ trigger a tray event thus hiding our form.
+What other options do we have? Well, with VB it's easy
+to do: sub-class the window function associated with
+our form, tell the tray icon to use a custom event
+(e.g. WM_USER + &H100) and intercept that event.
+To do that we need to know the address of our VB
+sub-classing function which can be done by using
+the AddressOf operator.
+Now, this guy doesn't exist in VBA.
+But Edwin Vermeer showed on this site a way to do it
+in VBA (I recommend reading his article, it's brilliant):
+Public Declare Function GetCurrentVbaProject Lib "vba332.dll" Alias "EbGetExecutingProj" (hProject As Long) As Long
+Public Declare Function GetFuncID Lib "vba332.dll" Alias "TipGetFunctionId" (ByVal hProject As Long, ByVal strFunctionName As String, ByRef strFunctionId As String) As Long
+Public Declare Function GetAddr Lib "vba332.dll" Alias "TipGetLpfnOfFunctionId" (ByVal hProject As Long, ByVal strFunctionId As String, ByRef lpfn As Long) As Long
+Public Function AddrOf(strFuncName As String) As Long
+ Const NO_ERROR = 0
+ Dim hProject As Long
+ Dim lngResult As Long
+ Dim strID As String
+ Dim lpfn As Long
+ Dim strFuncNameUnicode As String
+ AddrOf = 0
+ ' The function name must be in Unicode, so convert it.
+ strFuncNameUnicode = StrConv(strFuncName, vbUnicode)
+ ' Get the current VBA project
+ Call GetCurrentVbaProject(hProject)
+ ' Make sure we got a project handle...
+ ' we always should, but you never know!
+ If hProject <> 0 Then
+  ' Get the VBA function ID
+  lngResult = GetFuncID(hProject, strFuncNameUnicode, strID)
+  If lngResult = NO_ERROR Then
+   ' Get the function pointer.
+   lngResult = GetAddr(hProject, strID, lpfn)
+   If lngResult = NO_ERROR Then
+    AddrOf = lpfn
+   End If
+  End If
+ End If
+End Function
+Now, we can "hook" our windows function:
+Public Const WM_USER = &H400
+Public Const WM_MYTRAYEVENT = WM_USER + &H100
+Public lpfnOldWinProc As Long
+Public Sub setHook(hWnd As Long, strFunction As String)
+ Dim lpNewFunc As Long
+ lpNewFunc = AddrOf(strFunction)
+ If lpNewFunc = 0 Then Exit Sub
+ If lpfnOldWinProc <> 0 Then unsetHook hWnd
+ lpfnOldWinProc = SetWindowLong(hWnd, GWL_WNDPROC, lpNewFunc)
+End Sub
+Public Sub unsetHook(hWnd As Long)
+ On Error Resume Next
+ If lpfnOldWinProc = 0 Then Exit Sub
+ SetWindowLong hWnd, GWL_WNDPROC, lpfnOldWinProc
+ lpfnOldWinProc = 0
+End Sub
+Public Function hookFunc(ByVal hWnd As Long, ByVal msg As Long, ByVal wParam As Long, ByVal lParam As Long) As Long
+ If msg = WM_MYTRAYEVENT Then
+  If lParam = WM_LBUTTONUP Then ShowOrHideMe
+ End If
+ hookFunc = CallWindowProc(ByVal lpfnOldWinProc, ByVal hWnd, ByVal msg, ByVal wParam, ByVal lParam)
+End Function
+So, in the UserForm_Initialize event, init all flags etc.
+In Activate, call setHook(GetActiveWindow,"hookFunc")
+after putting an icon into the systray (as the Activate
+event might be called more than once, use a flag to make
+sure setHook gets called only once!).
+In Terminate, call unsetHook.
+This works reliably and is more professional
+than the previous solution.
+CAUTION! Never set a break point in your hookFunc
+and ALWAYS use the close box to stop your program
+or anything can happen! Save your project before
+running it, just in case...
+Improvements
+------------
+Well, there's an easy one (I still was too lazy
+to implement it) and a tough one:
+-if the form is covered by other forms, you need two
+ tray clicks to show it - should be only one.
+-it still bugs my that the form does not show up
+ in the task bar - anyone got an idea?
+Update
+I've added the text of this article as a zip file.
+```
+
